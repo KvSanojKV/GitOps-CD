@@ -1,0 +1,117 @@
+name: update metadata image tag
+
+permissions:
+  contents: write
+
+on:
+  workflow_call:
+    inputs:  
+      charts:
+        description: 'Helm chart names separated by comma'
+        type: string
+        required: true
+
+      chart-file-name:
+        description: 'enter chart name'
+        type: string
+        required: true
+      
+      image-tag:
+        description: enter image tag
+        type: string
+        required: true
+
+jobs:
+  name:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          
+      
+      - name: Install yq
+        run: |
+           curl -sL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o yq && sudo install yq /usr/local/bin/yq
+      
+      # - name: Update image tag in YAML
+      #   run: |
+      #     NEW_TAG="${{ inputs.image-tag }}"
+      
+      - name: Find folder
+        id: find-folder
+        run: |
+          set -x
+          ROOT=${GITHUB_WORKSPACE}
+
+          IFS=',' read -ra charts <<< "${{ inputs.charts }}"
+          for chart in "${charts[@]}"; do
+            echo "$chart" >> list-of-charts.txt
+
+            # echo "🔍 Looking for directory: $chart"
+            # DIRECTORY=$(find "$ROOT" -type d -name "$chart" | head -n 1)
+            # if [ -d "$DIRECTORY" ]; then
+            #   echo "✅ Directory '$DIRECTORY' exists. "
+            #   cd $DIRECTORY
+              ls
+
+              cd $chart
+              IFS=',' read -ra files <<< "${{ inputs.chart-file-name }}"
+              for file in "${files[@]}"; do
+                echo "$file" >> list-files.txt
+
+                FILE=$(find . -type f -name "$file" | head -n 1)
+                if [ -f "$FILE" ]; then
+                  echo "✅ $FILE found"
+                  DIR=$(dirname "$FILE")
+                  cd "$DIR"
+                  pwd
+                  ls -l
+                  cat "$(basename "$FILE")"
+                  
+                  echo "updating image tag"
+                  
+                  if [[ "$chart" == "fdn-applications/fdn-user-profile-app" ]]; then
+                    echo "PARAM=initContainers.image.tag" >> $GITHUB_ENV
+                  elif [[ "$chart" == "fdn-applications/fdn-user-profile-svc" ]]; then
+                    echo "PARAM=keycloakMetadata.image.tag" >> $GITHUB_ENV
+                  else
+                    echo "❌ Unknown chart: $chart"
+                    continue
+                  fi
+                  echo "NEW_TAG=${{ inputs.image-tag }}" >> $GITHUB_ENV
+                  yq -i "(.spec.source.helm.parameters[] | select(.name ==env(PARAM)) | .value) = env(NEW_TAG)" "$(basename "$FILE")"
+                  
+                  cat "$(basename "$FILE")"
+
+                  echo ""
+                  # cd "$DIRECTORY"
+                  cd "$ROOT/$chart"
+
+                else
+                  echo "❌ $file not found in $chart"
+                fi
+              done
+              cd "$ROOT"
+            # else 
+            #   echo "❌ No directory found for chart: $chart"
+              
+            # fi
+            
+          done
+          echo "=== Charts processed ==="
+          cat list-of-charts.txt
+
+      - name: push only diff files
+        run: |
+          git config --global user.name srikanthhg
+          git config --global user.email skanth306@gmail.com
+          git add -u
+          if git diff --cached --quiet; then
+            echo "✅ No changes to commit"
+          else
+            git commit -m "update image tag to ${{ inputs.image-tag }}"
+            git push origin HEAD:${GITHUB_REF#refs/heads/}
+          fi
+        
