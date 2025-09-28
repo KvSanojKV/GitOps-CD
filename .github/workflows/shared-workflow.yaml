@@ -30,7 +30,7 @@ jobs:
         with:
           repository: srikanthhg/private
           ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.mytoken }}
           path: helm-charts
       
       - name: Install yq
