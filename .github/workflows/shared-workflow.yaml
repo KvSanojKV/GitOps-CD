@@ -20,6 +20,9 @@ on:
         description: enter image tag
         type: string
         required: true
+    secrets:
+      MYTOKEN:
+        required: true
 
 jobs:
   name:
