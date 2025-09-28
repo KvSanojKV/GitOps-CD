@@ -31,7 +31,7 @@ jobs:
           repository: srikanthhg/private
           ref: main
           token: ${{ secrets.MYTOKEN }}
-          path: helm-charts
+          # path: helm-charts
       
       - name: Install yq
         run: |
